@@ -61,6 +61,9 @@ const rss = async (name, url, src, lang, n) => {
   }
 };
 await rss("google-news", "https://news.google.com/rss/search?q=%EB%B9%84%ED%8A%B8%EC%BD%94%EC%9D%B8&hl=ko&gl=KR&ceid=KR:ko", "Google 뉴스", "ko", 20);
+// 구글 뉴스는 GitHub Actions에서 자주 막혀 국내 매체 RSS를 함께 받음
+await rss("blockmedia", "https://www.blockmedia.co.kr/feed", "블록미디어", "ko", 10);
+await rss("tokenpost", "https://www.tokenpost.kr/rss", "토큰포스트", "ko", 10);
 await rss("coindesk", "https://www.coindesk.com/arc/outboundfeeds/rss/", "CoinDesk", "en", 10);
 await rss("cointelegraph", "https://cointelegraph.com/rss", "Cointelegraph", "en", 10);
 if (items.length) {
