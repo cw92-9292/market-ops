@@ -1,7 +1,7 @@
 name: market data
 on:
   schedule:
-    - cron: "7 * * * *"   # 매시 7분(UTC)
+    - cron: "17,47 * * * *"   # 30분마다(UTC). GitHub 예약 실행은 붐비면 밀리거나 건너뛰어 두 번씩 걸어 둠
   workflow_dispatch:
 permissions:
   contents: write

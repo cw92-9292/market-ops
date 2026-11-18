@@ -80,6 +80,20 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
 .tonebar{grid-column:1/-1;display:flex;height:6px;border-radius:99px;overflow:hidden;background:var(--line)}
 .tonebar span{display:block;height:100%}
 .foot{font-family:var(--mono);font-size:11px;color:var(--fg3)}
+.age{font-family:var(--mono);font-size:11px;color:var(--fg3);padding:5px 9px;border:1px solid var(--line2);border-radius:99px;white-space:nowrap}
+.age.stale{color:var(--warn);border-color:var(--warn)}
+.rule{margin-left:5px;font-size:10px;color:var(--fg3);border:1px solid var(--line2);border-radius:4px;padding:0 4px}
+.orig{display:block;margin-top:2px;font-size:11.5px;color:var(--fg3)}
+/* 휴대폰: 기사 표를 카드로(제목이 맨 위, 그 아래 분위기·주제·시각·매체 한 줄) */
+@media (max-width:640px){
+  #news-t thead{display:none}
+  #news-t tbody tr{display:grid;grid-template-columns:auto auto auto minmax(0,1fr);gap:4px 10px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line)}
+  #news-t td{border:0;padding:0;font-size:11.5px}
+  #news-t td.t{grid-column:1/-1;order:-1;min-width:0;font-size:13.5px;line-height:1.45}
+  #news-t td:nth-child(4){text-align:right;color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #news-t tbody tr:hover td{background:none}
+}
+.orig i{font-style:normal;margin-right:5px;font-size:10px;border:1px solid var(--line2);border-radius:4px;padding:0 4px}
 .cover .b-only{display:none} .fx-only{display:none} .cover .fx-only{display:block}
 @media (prefers-reduced-motion:no-preference){.led.on{animation:blink 2.4s ease-in-out infinite}@keyframes blink{50%{opacity:.4}}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -89,7 +103,7 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
 <div class="wrap" id="app">
   <div class="bar">
     <div class="brand"><span class="led" id="led"></span><div><h1>에너지·원자재 시장 모니터</h1><div class="sys" id="sys">연결 중…</div></div></div>
-    <div class="ctl"><button type="button" class="btn" id="cover" aria-pressed="false">요약만 보기 · ESC</button></div>
+    <div class="ctl"><span class="age" id="age" title="저장소 자료(일별·사이클·기사)를 마지막으로 받은 때">자료 —</span><button type="button" class="btn" id="cover" aria-pressed="false">요약만 보기 · ESC</button></div>
   </div>
 
   <p class="lede b-only" id="lede">지표 B는 지금 <b id="l-now">—</b>달러, 90일 전보다 <b id="l-d90">—</b>입니다. 반감기 뒤 <b id="l-day">—</b>일, 고점보다 <b id="l-dd">—</b> 낮고, 30일 추세를 이어 그으면 연말 <b id="l-trend">—</b>달러입니다.</p>
@@ -174,8 +188,8 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
         <button type="button" class="tone" data-t="부정" aria-pressed="false"><span class="tk"><span class="dot neg"></span>부정</span><span class="tv" data-c="부정">—</span></button>
         <div class="tonebar" id="tonebar"></div>
       </div>
-      <div class="tw"><table><thead><tr><th>분위기</th><th>주제</th><th>시각</th><th>매체</th><th>제목</th></tr></thead><tbody id="news-rows"></tbody></table></div>
-      <p class="note">분위기·주제는 Claude가 기사 제목만 읽고 하루 두 번 매깁니다. 그 사이에 새로 들어온 기사는 「미분류」로 보입니다.</p>
+      <div class="tw"><table id="news-t"><thead><tr><th>분위기</th><th>주제</th><th>시각</th><th>매체</th><th>제목</th></tr></thead><tbody id="news-rows"></tbody></table></div>
+      <p class="note">분위기·주제는 Claude가 기사 제목만 읽고 하루 두 번 매긴 값을 먼저 씁니다. 그 전에 들어온 기사는 낱말 규칙으로 임시 분류하고 「규칙」이라고 붙입니다. 해외 기사 제목은 기계 번역이고, 원문 제목을 아래에 함께 둡니다.</p>
     </section>
   </div>
   <div class="foot" id="foot">—</div>
@@ -261,15 +275,21 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     ws.onmessage = (m) => {
       const d = JSON.parse(typeof m.data === "string" ? m.data : new TextDecoder().decode(m.data));
       if (d.type === "ticker") { const el = $("p-krw"); if (st.krw != null && d.trade_price !== st.krw) flash(el, d.trade_price - st.krw); st.krw = d.trade_price; el.textContent = f0(d.trade_price); signed($("c-krw"), d.signed_change_rate * 100); premium(); }
-      if (d.type === "trade") {
-        const row = document.createElement("div");
-        const t = document.createElement("span"); t.textContent = new Date(d.trade_timestamp).toLocaleTimeString("en-GB", { hour12: false });
-        const p = document.createElement("span"); p.textContent = f0(d.trade_price); p.className = d.ask_bid === "BID" ? "up" : "down";
-        const v = document.createElement("span"); v.textContent = d.trade_volume.toFixed(4);
-        row.append(t, p, v); const tape = $("tape"); tape.prepend(row); while (tape.children.length > 80) tape.lastChild.remove();
-      }
+      if (d.type === "trade") addTrade(d.trade_timestamp, d.trade_price, d.trade_volume, d.ask_bid, false);
     };
   }
+  function addTrade(ts, price, vol, side, atEnd) {
+    const row = document.createElement("div");
+    const t = document.createElement("span"); t.textContent = new Date(ts).toLocaleTimeString("en-GB", { hour12: false });
+    const p = document.createElement("span"); p.textContent = f0(price); p.className = side === "BID" ? "up" : "down";
+    const v = document.createElement("span"); v.textContent = (+vol).toFixed(4);
+    row.append(t, p, v); const tape = $("tape"); if (atEnd) tape.append(row); else tape.prepend(row); while (tape.children.length > 80) tape.lastChild.remove();
+  }
+  // 처음 열 때 빈칸이 없게 업비트 공개 시세(최근 체결 30건·현재가)로 먼저 채움. 그 뒤로는 실시간 연결이 이어서 쌓음
+  fetch("https://api.upbit.com/v1/trades/ticks?market=KRW-BTC&count=30").then((r) => r.ok ? r.json() : []).then((a) => { if ($("tape").children.length) return; (a || []).forEach((x) => addTrade(x.timestamp, x.trade_price, x.trade_volume, x.ask_bid, true)); }).catch(() => {});
+  // 현재가는 업비트가 잠깐 막을 때(429)가 있어 세 번까지 다시 시도
+  const upTicker = (n) => fetch("https://api.upbit.com/v1/ticker?markets=KRW-BTC").then((r) => r.ok ? r.json() : Promise.reject(r.status)).then((a) => { const d = a && a[0]; if (!d || st.krw != null) return; st.krw = d.trade_price; $("p-krw").textContent = f0(d.trade_price); signed($("c-krw"), d.signed_change_rate * 100); premium(); }).catch(() => { if (n < 3 && st.krw == null) setTimeout(() => upTicker(n + 1), 1500 * (n + 1)); });
+  upTicker(0);
   openUpbit();
   fetch("https://api.frankfurter.dev/v1/latest?base=USD&symbols=KRW").then((r) => r.json()).then((j) => { st.fx = j.rates.KRW; $("fx").textContent = f2(st.fx); $("fxd").textContent = "ECB 기준 " + j.date; premium(); }).catch(() => {});
 
@@ -401,7 +421,7 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
   function drawNews() {
     const n = st.data.news; if (!n) return;
     const map = (st.data.tone && st.data.tone.map) || {};
-    const rows = n.rows.map((r) => ({ ...r, tone: (map[r.title] || {}).tone || "미분류", topic: (map[r.title] || {}).topic || "—" }));
+    const rows = n.rows.map((r) => { const c = map[r.title]; return c ? { ...r, tone: c.tone, topic: c.topic, rule: false } : { ...r, tone: r.rtone || "미분류", topic: r.rtopic || "—", rule: !!r.rtone }; });
     const base = rows.filter((r) => (!flt.lang || r.lang === flt.lang) && (!flt.topic || r.topic === flt.topic));
     document.querySelectorAll("#tones [data-c]").forEach((e) => { const t = e.dataset.c; e.textContent = t ? base.filter((r) => r.tone === t).length : base.length; });
     const bar = $("tonebar"); bar.replaceChildren();
@@ -409,11 +429,12 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     const cls = { 긍정: "pos", 중립: "neu", 부정: "neg" }, tf = d3.timeFormat("%m/%d %H:%M"), tb = $("news-rows"); tb.replaceChildren();
     for (const r of base.filter((r) => !flt.tone || r.tone === flt.tone)) {
       const tr = document.createElement("tr");
-      const tn = document.createElement("td"); tn.className = "n"; tn.style.textAlign = "left"; const dot = document.createElement("span"); dot.className = "dot " + (cls[r.tone] || ""); tn.append(dot, " " + r.tone);
+      const tn = document.createElement("td"); tn.className = "n"; tn.style.textAlign = "left"; const dot = document.createElement("span"); dot.className = "dot " + (cls[r.tone] || ""); tn.append(dot, " " + r.tone); if (r.rule) { const rb = document.createElement("span"); rb.className = "rule"; rb.textContent = "규칙"; rb.title = "Claude 분류 전 낱말 규칙으로 매긴 임시 값"; tn.appendChild(rb); }
       const tp = document.createElement("td"); tp.style.whiteSpace = "nowrap"; tp.style.color = "var(--fg2)"; tp.textContent = r.topic;
       const t = document.createElement("td"); t.className = "n"; t.textContent = r.time ? tf(new Date(r.time)) : "—";
       const s = document.createElement("td"); s.textContent = r.source;
-      const ti = document.createElement("td"); ti.className = "t"; const a = document.createElement("a"); a.href = r.link; a.target = "_blank"; a.rel = "noopener"; a.textContent = r.title; ti.appendChild(a);
+      const ti = document.createElement("td"); ti.className = "t"; const a = document.createElement("a"); a.href = r.link; a.target = "_blank"; a.rel = "noopener"; a.textContent = r.title_ko || r.title; ti.appendChild(a);
+      if (r.title_ko) { const o = document.createElement("span"); o.className = "orig"; const i = document.createElement("i"); i.textContent = "기계 번역"; o.append(i, r.title); ti.appendChild(o); }
       tr.append(tn, tp, t, s, ti); tb.appendChild(tr);
     }
   }
@@ -433,8 +454,17 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     Object.assign(st.data, { series, cycles, news, tone, outlook, status });
     drawAll();
     const at = (o) => o && o.at ? new Date(o.at).toLocaleString("ko-KR", { hour12: false }) : "—";
-    $("foot").textContent = "일별·사이클·기사 수집 " + at(series) + " · 기사 분류 " + at(tone) + (status && status.failed && status.failed.length ? " · 실패: " + status.failed.join(", ") : "") + " · 실시간: 바이낸스·업비트";
+    ageTick();
+    $("foot").textContent = "일별·사이클·기사 수집 " + at(series) + " · Claude 기사 분류 " + at(tone) + " · 해외 제목 기계 번역(Google)" + (status && status.failed && status.failed.length ? " · 실패: " + status.failed.join(", ") : "") + " · 실시간: 바이낸스·업비트";
   }
+  // 저장소 자료가 얼마나 묵었는지(GitHub 예약 실행이 밀릴 때가 있어 2시간 넘으면 노란색)
+  function ageTick() {
+    const s = st.data.status || st.data.series; const el = $("age"); if (!s || !s.at) return;
+    const m = Math.max(0, Math.round((Date.now() - Date.parse(s.at)) / 60000));
+    el.textContent = "자료 " + (m < 60 ? m + "분 전" : Math.floor(m / 60) + "시간 " + (m % 60) + "분 전");
+    el.classList.toggle("stale", m > 120);
+  }
+  setInterval(ageTick, 60000);
   loadAll(); setInterval(loadAll, 10 * 60000);
   let rt; new ResizeObserver(() => { drawCandles(); clearTimeout(rt); rt = setTimeout(drawAll, 150); }).observe($("app"));
   // 지금 값이 크게 바뀌면 예측·전망의 출발점도 따라감
