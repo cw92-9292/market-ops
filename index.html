@@ -92,6 +92,14 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
   #news-t td.t{grid-column:1/-1;order:-1;min-width:0;font-size:13.5px;line-height:1.45}
   #news-t td:nth-child(4){text-align:right;color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #news-t tbody tr:hover td{background:none}
+  /* 전망 출처: 1줄 누가·전망, 2줄 시점·발언일, 3줄 내용 */
+  #ol-t thead{display:none}
+  #ol-t tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 2px;border-bottom:1px solid var(--line)}
+  #ol-t td{border:0;padding:0;min-width:0}
+  #ol-t td:nth-child(1){font-weight:600}
+  #ol-t td:nth-child(3),#ol-t td:nth-child(4){font-size:11.5px;color:var(--fg2)}
+  #ol-t td.t{grid-column:1/-1;font-size:12.5px;color:var(--fg2);line-height:1.5}
+  #ol-t tbody tr:hover td{background:none}
 }
 .orig i{font-style:normal;margin-right:5px;font-size:10px;border:1px solid var(--line2);border-radius:4px;padding:0 4px}
 .cover .b-only{display:none} .fx-only{display:none} .cover .fx-only{display:block}
@@ -171,7 +179,8 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     </section>
     <section class="p b-only">
       <div class="ph"><h2>전망 출처</h2></div>
-      <div class="tw"><table><thead><tr><th>누가</th><th>전망</th><th>시점</th><th>발언일</th><th>내용</th></tr></thead><tbody id="ol-rows"></tbody></table></div>
+      <div class="tw"><table id="ol-t"><thead><tr><th>누가</th><th>전망</th><th>시점</th><th>발언일</th><th>내용</th></tr></thead><tbody id="ol-rows"></tbody></table></div>
+      <p class="note" id="ol-checked"></p>
     </section>
 
     <section class="p">
@@ -410,12 +419,23 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     const maxv = d3.max(rows, (r) => Math.max(+r.low || 0, +(r.high ?? r.low) || 0)), L = Math.min(170, W * 0.38);
     const x = d3.scaleLinear().domain([40000, Math.max(maxv, now) * 1.05]).range([L, W - 14]);
     svg.append("g").attr("class", "ax").attr("transform", `translate(0,${H - 22})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.floor((W - L) / 80))).tickFormat((v) => f0(v / 1000) + "k").tickSizeOuter(0));
-    rows.forEach((r, i) => { const cy = i * rh + 14; svg.append("text").attr("x", 0).attr("y", cy + 4).style("fill", C.fg2).text(r.who.length > 20 ? r.who.slice(0, 19) + "…" : r.who); const lo = +r.low, hi = r.high == null ? x.domain()[1] : +r.high; svg.append("rect").attr("x", x(lo)).attr("y", cy - 5).attr("width", Math.max(6, x(hi) - x(lo))).attr("height", 10).attr("rx", 3).style("fill", C.acc2).style("opacity", r.high == null ? 0.35 : 0.85); });
+    rows.forEach((r, i) => {
+      const cy = i * rh + 14, old = stale(r);
+      // 이름은 짧은 이름(short)을 쓰고, 그래도 칸보다 길면 실제 글자 폭을 재서 줄임
+      const name = r.short || r.who.replace(/\s*\(.*\)\s*$/, ""), tx = svg.append("text").attr("x", 0).attr("y", cy + 4).style("fill", old ? C.fg3 : C.fg2).text(name);
+      let s = name; while (s.length > 3 && tx.node().getComputedTextLength() > L - 10) { s = s.slice(0, -1); tx.text(s.trimEnd() + "…"); }
+      tx.append("title").text(r.who + (old ? " · 발언 30일 넘음" : ""));
+      const lo = +r.low, hi = r.high == null ? x.domain()[1] : +r.high;
+      svg.append("rect").attr("x", x(lo)).attr("y", cy - 5).attr("width", Math.max(6, x(hi) - x(lo))).attr("height", 10).attr("rx", 3).style("fill", C.acc2).style("opacity", (r.high == null ? 0.35 : 0.85) * (old ? 0.5 : 1));
+    });
     svg.append("line").attr("x1", x(now)).attr("x2", x(now)).attr("y1", 2).attr("y2", H - 22).style("stroke", C.fg).attr("stroke-width", 1.5);
     svg.append("text").attr("x", Math.min(x(now) + 4, W - 80)).attr("y", 10).style("fill", C.fg).text("지금 " + f0(now));
     const tb = $("ol-rows"); tb.replaceChildren();
-    for (const r of rows) { const tr = document.createElement("tr"); const who = document.createElement("td"); const a = document.createElement("a"); a.href = r.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = r.who; who.appendChild(a); const c = (t, cls) => { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = t ?? ""; return td; }; tr.append(who, c(r.target, "n"), c(r.horizon), c(r.said || "—", "n"), c(r.note, "t")); tb.appendChild(tr); }
+    for (const r of rows) { const tr = document.createElement("tr"); const who = document.createElement("td"); const a = document.createElement("a"); a.href = r.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = r.who; who.appendChild(a); const c = (t, cls) => { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = t ?? ""; return td; }; const sd = c(r.said || "—", "n"); if (stale(r)) { const k = document.createElement("span"); k.className = "rule"; k.textContent = "30일+"; k.title = "발언한 지 30일이 넘어 지금 값과 거리가 있을 수 있음"; sd.appendChild(k); } tr.append(who, c(r.target, "n"), c(r.horizon), sd, c(r.note, "t")); tb.appendChild(tr); }
+    $("ol-checked").textContent = o.checked ? "전망 자료 확인 " + o.checked : "";
   }
+  // 발언일이 30일 넘었는지(YYYY-MM만 있으면 그 달 15일로 봄)
+  function stale(r) { if (!r.said) return true; const t = Date.parse(r.said.length === 7 ? r.said + "-15" : r.said); return isNaN(t) || Date.now() - t > 30 * 864e5; }
 
   const flt = { tone: "", topic: "", lang: "" };
   function drawNews() {
