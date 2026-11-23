@@ -157,7 +157,9 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     </section>
 
     <section class="p w8 b-only">
-      <div class="ph"><h2>반감기 사이클 겹쳐 보기</h2><span class="tag">반감기 날 = 1배 · 눈금 한 칸 = 2배</span></div>
+      <div class="ph"><h2>반감기 사이클 겹쳐 보기</h2>
+        <div class="ctl"><span class="tag" id="cy-scale-tag">반감기 날 = 1배 · 눈금 한 칸 = 2배</span><div class="seg" id="cy-scale" role="group" aria-label="세로축 눈금"><button type="button" data-s="log" aria-pressed="true">로그</button><button type="button" data-s="lin" aria-pressed="false">일반</button></div></div>
+      </div>
       <div class="legend"><span><i style="--c:var(--slate)"></i>2012</span><span><i style="--c:var(--vio)"></i>2016</span><span><i style="--c:var(--acc2)"></i>2020</span><span><i style="--c:var(--acc)"></i>2024(지금)</span></div>
       <div class="chart" id="cy-chart"></div>
       <p class="note">세모는 각 사이클 고점, 동그라미는 고점 뒤 바닥입니다. 과거 흐름이 되풀이된다는 보장은 없습니다.</p>
@@ -276,6 +278,11 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     };
   }
   document.querySelectorAll("#tf button").forEach((b) => b.addEventListener("click", () => { document.querySelectorAll("#tf button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false")); loadBars(b.dataset.i); }));
+  // 반감기 차트 세로축: 로그/일반 (보는 사람 브라우저에만 기억)
+  try { st.cyScale = localStorage.getItem("cyScale") === "lin" ? "lin" : "log"; } catch { st.cyScale = "log"; }
+  const cyBtns = document.querySelectorAll("#cy-scale button"), cyMark = () => cyBtns.forEach((x) => x.setAttribute("aria-pressed", x.dataset.s === st.cyScale ? "true" : "false"));
+  cyMark();
+  cyBtns.forEach((b) => b.addEventListener("click", () => { st.cyScale = b.dataset.s; cyMark(); try { localStorage.setItem("cyScale", st.cyScale); } catch {} drawCycles(); }));
   loadBars("1m");
   function openUpbit() {
     const ws = new WebSocket("wss://api.upbit.com/websocket/v1"); ws.binaryType = "arraybuffer";
@@ -371,10 +378,13 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--fg2);background:var(
     const col = { "2012": C.slate, "2016": C.vio, "2020": C.acc2, "2024": C.acc };
     const rows = d.rows.filter((r) => r.day <= 1460 && r.mult > 0), stats = cycleStats(rows), by = d3.group(rows, (r) => r.cycle);
     const el = $("cy-chart"), H = 300, { W, svg } = frame(el, H, "반감기 날을 1배로 맞춘 네 사이클과 지금 위치");
-    // 눈금은 2배 간격(0.5·1·2·4·8…)이라 칸 사이가 모두 같고, 축은 데이터를 감싸는 가장 가까운 2의 거듭제곱까지만 씀
-    const [lo, hi] = d3.extent(rows, (r) => r.mult), k0 = Math.floor(Math.log2(lo)), k1 = Math.ceil(Math.log2(hi));
-    const y = d3.scaleLog().base(2).domain([2 ** k0, 2 ** k1]).range([H - 24, 16]);
-    const yt = d3.range(k0, k1 + 1).map((k) => 2 ** k), fx = (v) => v + "배";
+    // 로그: 눈금 2배 간격(0.5·1·2·4·8…)이라 칸 사이가 모두 같고, 축은 데이터를 감싸는 가장 가까운 2의 거듭제곱까지만 씀
+    // 일반: 0배부터 같은 폭 눈금(배수 차이를 그대로 봄, 작은 사이클은 아래로 눌림)
+    const [lo, hi] = d3.extent(rows, (r) => r.mult), fx = (v) => v + "배";
+    let y, yt;
+    if (st.cyScale === "lin") { y = d3.scaleLinear().domain([0, hi]).nice().range([H - 24, 16]); yt = y.ticks(6); }
+    else { const k0 = Math.floor(Math.log2(lo)), k1 = Math.ceil(Math.log2(hi)); y = d3.scaleLog().base(2).domain([2 ** k0, 2 ** k1]).range([H - 24, 16]); yt = d3.range(k0, k1 + 1).map((k) => 2 ** k); }
+    $("cy-scale-tag").textContent = "반감기 날 = 1배 · " + (st.cyScale === "lin" ? "일반 눈금" : "눈금 한 칸 = 2배");
     const L = widest(svg, yt.map(fx)) + 12, x = d3.scaleLinear().domain([0, 1460]).range([L, W - 30]);
     yAxis(svg, y, yt, fx, W, L);
     svg.append("g").attr("class", "ax").attr("transform", `translate(0,${H - 24})`).call(d3.axisBottom(x).tickValues([0, 365, 730, 1095, 1460]).tickFormat((v) => v + "일").tickSizeOuter(0));
